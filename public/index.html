@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h2>HR Policy Bot (Llama 3.2)</h2>
+  <div id="chat" style="border:1px solid #ccc; height:300px; overflow-y:scroll; padding:10px;"></div>
+  <input type="text" id="question" placeholder="Ask about PTO, Sick Leave..." style="width:80%">
+  <button onclick="askBot()">Send</button>
+
+  <script>
+    async function askBot() {
+      const q = document.getElementById('question').value;
+      const res = await fetch('http://localhost:3000/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q })
+      });
+      const data = await res.json();
+      document.getElementById('chat').innerHTML += `<p><b>You:</b> ${q}</p><p><b>Bot:</b> ${data.answer}</p>`;
+    }
+  </script>
+</body>
+</html>

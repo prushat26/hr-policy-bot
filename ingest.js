@@ -14,6 +14,7 @@ const index = pc.index('hr-policies');
 let embedder; // Move embedder outside to reuse across files
 
 async function ingestPDF(filePath) {
+  const t0 = performance.now(); // Start high-res timer
   try {
     if (!embedder) {
       embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
@@ -32,64 +33,66 @@ async function ingestPDF(filePath) {
       return;
     }
 
-    // Create Chunks
-    const chunks = text.match(/[\s\S]{1,1000}/g) || [];
-    const vectors = [];
+// Create Chunks with 200-character overlap
+    const chunks = [];
+    for (let i = 0; i < text.length; i += 800) {
+      const start = i < 200 ? 0 : i - 200; 
+      chunks.push(text.substring(start, i + 800));
+    }
+    const BATCH_SIZE = 10;
+    const cleanVectors = [];
 
-    for (let i = 0; i < chunks.length; i++) {
-      const content = chunks[i].trim();
-      if (content.length < 2) continue;
+// MODIFICATION: Batched parallel processing for memory safety
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batch = chunks.slice(i, i + BATCH_SIZE);
+      
+      const batchResults = await Promise.all(batch.map(async (content, index) => {
+        const trimmed = content.trim();
+        if (trimmed.length < 5) return null;
 
-      const output = await embedder(content, { pooling: 'mean', normalize: true });
-      const embedding = Array.from(output.data);
+        const output = await embedder(trimmed, { pooling: 'mean', normalize: true });
+        
+        return {
+          id: `vec-${Date.now()}-${i + index}`,
+          values: Array.from(output.data),
+          metadata: { 
+            text: trimmed, 
+            source: fileName, 
+            context: `${fileName}: ${trimmed.substring(0, 100)}`
+          }
+        };
+      }));
 
-      vectors.push({
-        id: `vec-${Date.now()}-${i}`,
-        values: embedding,
-        metadata: { text: content, source: fileName }
-      });
+      // Push results and show progress for large files
+      cleanVectors.push(...batchResults.filter(v => v));
+      console.log(`  ├─ ⏳ Progress: ${Math.min(i + BATCH_SIZE, chunks.length)}/${chunks.length} chunks`);
     }
 
-    // Final Upsert
-    if (vectors.length > 0) {
-      console.log(`  ├─ Vectors Prepared: ${vectors.length}`);
-      console.log(`  ├─ Vector Dimension: ${vectors[0].values.length}`);
-      
+// Final Upsert
+    if (cleanVectors.length) {
+      console.log(`  ├─ 📦 Vectors Prepared: ${cleanVectors.length}`);
       try {
-        // Modern SDKs prefer passing the array directly to .upsert()
-        await index.upsert(vectors);
-        console.log(`  └─ ✅ SUCCESS: ${vectors.length} records are now in Pinecone.`);
-      } catch (pineconeErr) {
-        // This is the error handler for the "1 record" failure
-        console.error(`  └─ ❌ PINECONE REJECTION:`, pineconeErr.message);
-        console.log(`     CRITICAL: Go to Pinecone Dashboard and ensure 'hr-policies' is 384 dimensions.`);
+        await index.upsert(cleanVectors);
+        const time = ((performance.now() - t0) / 1000).toFixed(2); // Calculate seconds
+        console.log(`  └─ ✅ SUCCESS: Records stored in ${time}s.`);
+      } catch (err) {
+        console.error(`  └─ ❌ PINECONE REJECTION: ${err.message}`);
       }
     }
-
   } catch (error) {
-    console.error(`  └─ ❌ SYSTEM ERROR:`, error.message);
+    console.error(`  └─ ❌ SYSTEM ERROR: ${error.message}`);
   }
 }
 
 const runBatch = async (dir) => {
   console.log(`--- Starting Batch Ingestion: ${dir} ---`);
   
-  if (!fs.existsSync(dir)) {
-    console.log(`  └─ ❌ Folder '${dir}' not found.`);
-    return;
-  }
-
+  if (!fs.existsSync(dir)) return console.log("Folder not found.");
   const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.pdf'));
   
-  if (files.length === 0) {
-    console.log(`  └─ ⚠️  No PDFs found in ${dir}`);
-    return;
-  }
-
-  for (const file of files) {
-    await ingestPDF(path.join(dir, file));
-  }
-  console.log("\n--- Process Finished ---");
+  // Process files one by one, while chunks inside are batched-parallel
+  for (const file of files) await ingestPDF(path.join(dir, file));
+  console.log("--- Process Finished ---");
 };
 
 runBatch('./data');

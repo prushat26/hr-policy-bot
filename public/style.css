@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+/* 1. Reset & Global Layout */
+* { box-sizing: border-box; }
+body {
+    background: #f4f4f7;
+    font: 400 1.1rem 'Inter',sans-serif;
+    color: #1a1a1a; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 20px;
+    margin: 0;
+}
+
+/* 2. Universal Design Elements (Shared by Chat, Input, and Button) */
+#chat, #question, button { 
+  width: 100%; max-width: 700px; 
+  border: 1px solid #d1d1d6; 
+  transition: 0.2s ease-in-out;
+  border-radius: 2px; /* Uniform industrial corner */
+}
+
+/* 3. Shared Spacing & Interaction */
+#chat, #question, button, #chat p { padding: 18px; }
+
+/* 4. Element Specifics */
+h2 { 
+    font: 600 0.9rem 'Inter';
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #2c3e50;
+    margin-bottom: 30px; 
+}
+
+#chat { 
+    height: 500px;
+    background: #fff;
+    overflow-y: auto;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    margin-bottom: 20px; 
+}
+#chat p {
+    border-bottom: 1px solid #f0f0f5;
+    margin: 0;
+    line-height: 1.7;
+}
+
+#question {
+    outline: none; 
+    margin-bottom: 10px;
+    background: #fff;
+}
+#question:focus {
+    border-color: #2c3e50;
+    box-shadow: 0 0 0 1px #2c3e50;
+}
+
+button { 
+    background: #2c3e50;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font: 600 0.85rem 'Inter';
+    text-transform: uppercase;
+    letter-spacing: 0.15em; 
+}
+button:hover {
+    background: #1a252f;
+    letter-spacing: 0.2em;
+}
